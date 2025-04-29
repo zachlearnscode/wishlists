@@ -11,8 +11,8 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True)
     name: str
-    password_hash: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    firebase_uid: str = Field(index=True, unique=True) 
 
     wishlists_created: List["Wishlist"] = Relationship(back_populates="creator", sa_relationship_kwargs={"foreign_keys": "[Wishlist.created_by_id]"})
     wishlist_links: List["WishlistUserLink"] = Relationship(back_populates="user")
@@ -80,9 +80,9 @@ with Session(engine) as session:
     SQLModel.metadata.create_all(engine)
 
     # --- Create Users ---
-    alice = User(name="Alice Johnson", email="alice@example.com", password_hash="hashed_alice")
-    bob = User(name="Bob Smith", email="bob@example.com", password_hash="hashed_bob")
-    emma = User(name="Emma Brown", email="emma@example.com", password_hash="hashed_emma")
+    alice = User(name="Alice Johnson", email="alice@example.com", firebase_uid="123")
+    bob = User(name="Bob Smith", email="bob@example.com", firebase_uid="456")
+    emma = User(name="Emma Brown", email="emma@example.com", firebase_uid="789")
 
     session.add_all([alice, bob, emma])
     session.commit()
@@ -142,6 +142,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class UserCreate(SQLModel):
+    email: str
+    firebase_uid: str
+    name: str
+
+@app.post("/users")
+def create_user_from_firebase_user(user_data: UserCreate, session: SessionDep):
+    user = User(**user_data.dict())
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
 
 class WishlistRead(SQLModel):
     id: int
