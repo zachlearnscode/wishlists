@@ -11,6 +11,8 @@
   "dependencies": {
     "@heroicons/vue": "^2.2.0",
     "@tailwindcss/vite": "^4.1.4",
+    "firebase": "^10.14.1",
+    "firebaseui": "^6.1.0",
     "mitt": "^3.0.1",
     "tailwindcss": "^4.1.4",
     "vee-validate": "^4.15.0",
