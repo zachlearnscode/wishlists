@@ -4,15 +4,16 @@ from sqlalchemy.orm import selectinload
 from typing import Optional, List, Annotated, Literal
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
+from uuid import uuid4, UUID
 
 
 # --------- USER ---------
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    firebase_uid: str = Field(index=True, unique=True)
     email: str = Field(unique=True, index=True)
     name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    firebase_uid: str = Field(index=True, unique=True) 
 
     wishlists_created: List["Wishlist"] = Relationship(back_populates="creator", sa_relationship_kwargs={"foreign_keys": "[Wishlist.created_by_id]"})
     wishlist_links: List["WishlistUserLink"] = Relationship(back_populates="user")
@@ -28,6 +29,7 @@ class Wishlist(SQLModel, table=True):
     recipient_name: Optional[str]
     created_by_id: int = Field(foreign_key="user.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    invitation_id: UUID = Field(default_factory=uuid4, index=True, unique=True)
 
     creator: Optional[User] = Relationship(back_populates="wishlists_created", sa_relationship_kwargs={"foreign_keys": "[Wishlist.created_by_id]"})
     users: List["WishlistUserLink"] = Relationship(back_populates="wishlist")
@@ -143,6 +145,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get('/users/firebase-uid/{uid}')
+def get_user_by_firebase_uid(uid: str, session: SessionDep):
+    statement = select(User).where(User.firebase_uid == uid);
+    results = session.exec(statement).first()
+
+    return results
+
 class UserCreate(SQLModel):
     email: str
     firebase_uid: str
@@ -156,6 +165,29 @@ def create_user_from_firebase_user(user_data: UserCreate, session: SessionDep):
     session.commit()
     session.refresh(user)
     return user
+
+class WishlistCreate(SQLModel):
+    title: str
+    recipient_name: str
+    created_by_id: int
+
+@app.post("/wishlists")
+def create_wishlist(wishlist_data: WishlistCreate, session: SessionDep):
+    wishlist = Wishlist(**wishlist_data.dict())
+
+    session.add(wishlist)
+    session.commit()
+    session.refresh(wishlist)
+
+    link = WishlistUserLink(
+        wishlist_id=wishlist.id,
+        user_id=wishlist.created_by_id,
+        role="owner"
+    )
+    session.add(link)
+    session.commit()
+
+    return wishlist
 
 class WishlistRead(SQLModel):
     id: int

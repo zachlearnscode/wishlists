@@ -1,18 +1,18 @@
 <template>
-  <div class="flex justify-center center p-3">
+  <div class="flex justify-center center p-3 md:w-2xl mx-auto">
     <span v-if="loading" class="loading loading-dots loading-md"></span>
-    <div v-else class="w-full md:w-2xl">
+    <div v-else class="w-full">
       <div class="flex justify-between">
         <h1 class="text-xl font-bold mr-auto">
           {{ wishlist.title }}
         </h1>
         <div class="flex">
-          <button
+          <Button
             class="btn btn-circle btn-ghost"
             @click="emitter.emit('show-add-item-modal', { wishlistId: id })"
           >
             <PlusCircleIcon class="size-6"/>
-          </button>
+          </Button>
           <div class="tooltip tooltip-bottom" data-tip="Leave">
             <button
               class="btn btn-circle btn-ghost"
@@ -30,7 +30,12 @@
       </div>
       <ul class="list">
         <li class="p-4 pb-2 opacity-60 tracking-wide">Items</li>
-        <li v-for="(item, index) in items" :key="item.id" class="list-row">
+        <li
+          v-if="items?.length"
+          v-for="(item, index) in items"
+          :key="item.id"
+          class="list-row"
+        >
           <div class="text-4xl font-thin opacity-30 tabular-nums">
             {{ String(index + 1).padStart(2, '0') }}
           </div>
@@ -50,12 +55,12 @@
               {{ item.description }}
             </div>
           </div>
-          <div class="list-col-wrap flex flex-col sm:flex-row gap-1">
+          <div class="list-col-wrap flex gap-1">
             <div class="flex gap-1 items-center">
               <LightBulbIcon class="size-4"/>
               {{ item.added_by_id }}
               <button
-                v-if="item.added_by_id == user.id || true"
+                v-if="item.added_by_id == store.wishlistsUser.id"
                 class="btn btn-xs btn-outline"
                 @click="emitter.emit('show-add-item-modal',  { wishlistId: id , editItemId: item.id })"
               >
@@ -66,7 +71,7 @@
               <HandRaisedIcon class="size-4"/>
               <span v-if="item.claimed_by_id">{{ item.claimed_by_id }}</span>
               <button
-                v-if="!item.claimed_by_id || user.id == item.claimed_by_id"
+                v-if="!item.claimed_by_id || store.wishlistsUser.id == item.claimed_by_id"
                 class="btn btn-xs btn-outline"
                 @click="onClaimBtnClick(item.id, !item.claimed_by_id)"
               >
@@ -77,7 +82,7 @@
               <GiftIcon class="size-4"/>
               <span v-if="item.acquired_by_id">{{ item.acquired_by_id }}</span>
               <button
-                v-if="!item.acquired_by_id || user.id == item.acquired_by_id"
+                v-if="!item.acquired_by_id || store.wishlistsUser.id == item.acquired_by_id"
                 class="btn btn-xs btn-outline"
                 @click="onAcquireBtnClick(item.id, !item.acquired_by_id)"
               >
@@ -91,6 +96,22 @@
             <div v-else class="badge badge-soft badge-error ml-auto">Unclaimed</div>
           </div>
         </li>
+        <li v-else>
+          <div class="card card-dash border-dashed border-3 w-full">
+            <div class="card-body flex flex-col items-center">
+              <h2 class="card-title opacity-40">
+                Items will appear here
+              </h2>
+              <button
+                class="btn btn-sm btn-wide btn-soft opacity-100 w-64"
+                @click="emitter.emit('show-add-item-modal', { wishlistId: id })"
+              >
+                <PlusCircleIcon class="size-6"/>
+                Add an item
+              </button>
+            </div>
+          </div>
+        </li>
       </ul>
     </div>
   </div>
@@ -99,15 +120,15 @@
 <script setup>
 import { reactive, ref, onBeforeMount, onMounted } from 'vue'
 import { EyeIcon, PlusCircleIcon, ArrowLeftStartOnRectangleIcon, Cog6ToothIcon, ArrowUpRightIcon, PencilSquareIcon, UserIcon, LightBulbIcon, HandRaisedIcon, GiftIcon } from '@heroicons/vue/24/outline';
-import AddItemModal from "../components/AddItemModal.vue";
 import emitter from "../utilities/emitter.js"
+import { useAuthStore } from "../stores/auth"
 
 const props = defineProps({
   id: String,
   required: true
 })
 
-const user = reactive({id: 3})
+const store = useAuthStore()
 
 const loading = ref(true);
 const wishlist = ref(null);
@@ -133,7 +154,10 @@ onMounted(async () => {
     ])
 
     const refs = [wishlist, users, items];
-    response.forEach(async (res, i) => refs[i].value = await res.value.json())
+    for (let i = 0; i < response.length; i++) {
+      const res = response[i]
+      refs[i].value = await res.value.json()
+    }
   } catch (err) {
     console.error(err);
   } finally {
@@ -142,12 +166,12 @@ onMounted(async () => {
 })
 
 const onLeaveBtnClick = () => {
-  emitter.emit('show-confirm-modal', {
+  emitter.emit('show-confirm-dialog', {
     confirmHeader: 'Leave List?',
     confirmMessage: 'Are you sure you want to leave?',
     confirmAction: 'Leave',
     onConfirmFn: async () => {
-      await fetch(`${import.meta.env.VITE_API_URL}/wishlists/${props.id}/users/${user.id}`, { method: 'DELETE' })
+      await fetch(`${import.meta.env.VITE_API_URL}/wishlists/${props.id}/users/${store.wishlistsUser.id}`, { method: 'DELETE' })
     }
   })
 }
