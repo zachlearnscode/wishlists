@@ -58,9 +58,9 @@
           <div class="list-col-wrap flex gap-1">
             <div class="flex gap-1 items-center">
               <LightBulbIcon class="size-4"/>
-              {{ item.added_by_id }}
+              {{ item.added_by.id == store.wishlistsUser.id ? 'You' : item.added_by_name }}
               <button
-                v-if="item.added_by_id == store.wishlistsUser.id"
+                v-if="item.added_by.id == store.wishlistsUser.id"
                 class="btn btn-xs btn-outline"
                 @click="emitter.emit('show-add-item-modal',  { wishlistId: id , editItemId: item.id })"
               >
@@ -69,30 +69,30 @@
             </div>
             <div class="flex gap-1 items-center">
               <HandRaisedIcon class="size-4"/>
-              <span v-if="item.claimed_by_id">{{ item.claimed_by_id }}</span>
+              <span>{{ item.claimed_by?.id == store.wishlistsUser.id ? 'You' : (item.claimed_by?.name ?? '—') }}</span>
               <button
-                v-if="!item.claimed_by_id || store.wishlistsUser.id == item.claimed_by_id"
+                v-if="!item.claimed_by || store.wishlistsUser.id == item.claimed_by.id"
                 class="btn btn-xs btn-outline"
-                @click="onClaimBtnClick(item.id, !item.claimed_by_id)"
+                @click="onClaimBtnClick(item.id, !item.claimed_by?.id)"
               >
-                {{ `${item.claimed_by_id ? 'Unc' : 'C'}laim` }}
+                {{ `${item.claimed_by ? 'Unc' : 'C'}laim` }}
               </button>
             </div>
             <div class="flex gap-1 items-center">
               <GiftIcon class="size-4"/>
-              <span v-if="item.acquired_by_id">{{ item.acquired_by_id }}</span>
+              <span>{{ item.acquired_by?.id == store.wishlistsUser.id ? 'You' : (item.acquired_by?.name ?? '—') }}</span>
               <button
-                v-if="!item.acquired_by_id || store.wishlistsUser.id == item.acquired_by_id"
+                v-if="!item.acquired_by || store.wishlistsUser.id == item.acquired_by.id"
                 class="btn btn-xs btn-outline"
-                @click="onAcquireBtnClick(item.id, !item.acquired_by_id)"
+                @click="onAcquireBtnClick(item.id, !item.acquired_by?.id)"
               >
-                {{`${item.acquired_by_id ? 'Unm' : 'M'}ark as acquired`}}
+                {{`${item.acquired_by ? 'Unm' : 'M'}ark as acquired`}}
               </button>
             </div>
           </div>
           <div>
-            <div v-if="item.acquired_by_id" class="badge badge-soft badge-success ml-auto">Acquired</div>
-            <div v-else-if="item.claimed_by_id" class="badge badge-soft badge-info ml-auto">Claimed</div>
+            <div v-if="item.acquired_by" class="badge badge-soft badge-success ml-auto">Acquired</div>
+            <div v-else-if="item.claimed_by" class="badge badge-soft badge-info ml-auto">Claimed</div>
             <div v-else class="badge badge-soft badge-error ml-auto">Unclaimed</div>
           </div>
         </li>
@@ -119,15 +119,18 @@
 
 <script setup>
 import { reactive, ref, onBeforeMount, onMounted } from 'vue'
+import { useRouter } from "vue-router"
 import { EyeIcon, PlusCircleIcon, ArrowLeftStartOnRectangleIcon, Cog6ToothIcon, ArrowUpRightIcon, PencilSquareIcon, UserIcon, LightBulbIcon, HandRaisedIcon, GiftIcon } from '@heroicons/vue/24/outline';
 import emitter from "../utilities/emitter.js"
 import { useAuthStore } from "../stores/auth"
+import api from "../api/axios"
 
 const props = defineProps({
   id: String,
   required: true
 })
 
+const router = useRouter()
 const store = useAuthStore()
 
 const loading = ref(true);
@@ -147,17 +150,14 @@ onBeforeMount(() => {
 
 onMounted(async () => {
   try {
-    const response = await Promise.allSettled([
-      fetch(`${import.meta.env.VITE_API_URL}/wishlists/${props.id}`),
-      fetch(`${import.meta.env.VITE_API_URL}/wishlists/${props.id}/users`),
-      fetch(`${import.meta.env.VITE_API_URL}/wishlists/${props.id}/items`)
+    const res = await Promise.allSettled([
+      api(`/wishlists/${props.id}`),
+      api(`/wishlists/${props.id}/users`),
+      api(`/wishlists/${props.id}/items`)
     ])
 
     const refs = [wishlist, users, items];
-    for (let i = 0; i < response.length; i++) {
-      const res = response[i]
-      refs[i].value = await res.value.json()
-    }
+    refs.forEach((r, i) => r.value = res[i].value.data);
   } catch (err) {
     console.error(err);
   } finally {
@@ -171,18 +171,21 @@ const onLeaveBtnClick = () => {
     confirmMessage: 'Are you sure you want to leave?',
     confirmAction: 'Leave',
     onConfirmFn: async () => {
-      await fetch(`${import.meta.env.VITE_API_URL}/wishlists/${props.id}/users/${store.wishlistsUser.id}`, { method: 'DELETE' })
+      try {
+        await api.delete(`/wishlists/${props.id}/user`)
+        router.push('/dashboard');
+      } catch (err) {
+        console.error(err)
+      }
     }
   })
 }
 
 const onClaimBtnClick = async (itemId, isClaiming) => {
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/items/${itemId}/${isClaiming ? 'claim' : 'unclaim'}`, { method: "PUT" })
-    const data = await res.json()
-
-    const itemIdx = items.value.findIndex(({ id }) => id == data.id);
-    items.value[itemIdx] = data;
+    const res = await api.put(`/items/${itemId}/${isClaiming ? 'claim' : 'unclaim'}`)
+    const itemIdx = items.value.findIndex(({ id }) => id == res.data.id);
+    items.value[itemIdx] = res.data;
   } catch (err) {
     console.error(err)
   }
@@ -190,11 +193,9 @@ const onClaimBtnClick = async (itemId, isClaiming) => {
 
 const onAcquireBtnClick = async (itemId, isAcquiring) => {
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/items/${itemId}/${isAcquiring ? 'acquire' : 'unacquire'}`, { method: "PUT" })
-    const data = await res.json()
-
-    const itemIdx = items.value.findIndex(({ id }) => id == data.id);
-    items.value[itemIdx] = data;
+    const res = await api.put(`/items/${itemId}/${isAcquiring ? 'acquire' : 'unacquire'}`,)
+    const itemIdx = items.value.findIndex(({ id }) => id == res.data.id);
+    items.value[itemIdx] = res.data;
   } catch (err) {
     console.error(err)
   }

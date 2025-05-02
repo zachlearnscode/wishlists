@@ -88,6 +88,7 @@ import { useForm } from 'vee-validate';
 import * as yup from 'yup';
 import { useAuthStore } from "../stores/auth"
 import emitter from "../utilities/emitter.js";
+import api from "../api/axios"
 
 const store = useAuthStore()
 
@@ -119,18 +120,14 @@ const [recipientName, recipientNameAttrs] = form.defineField('recipientName', fi
 
 const onSubmit = form.handleSubmit(async (values) => {
   try {
-    const { title, recipientName } = values;
-    const body = {
-      title,
-      recipient_name: recipientName,
-      created_by_id: store.wishlistsUser.id
-    };
+    loading.value = true;
 
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/wishlists`, {
-      method: 'POST',
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
+    const { title, recipientName } = values;
+    const data = { title, recipient_name: recipientName };
+    const res = await api.post('/wishlists', data)
+
+    emitter.emit('create-wishlist-success', { wishlist: res.data })
+    open.value = false;
   } catch (err) {
     console.error(err)
   } finally {

@@ -1,61 +1,66 @@
 <template>
   <div>
     <nav class="bg-white border-b border-gray-200 shadow-sm px-4 py-3 flex justify-between items-center relative">
-    <!-- Brand -->
-    <RouterLink to="/" class="text-xl font-semibold text-gray-800">
-      Wishlists
-    </RouterLink>
+      <!-- Brand -->
+      <RouterLink to="/" class="text-xl font-semibold text-gray-800">
+        Wishlists
+      </RouterLink>
 
-    <!-- Desktop Nav -->
-    <div class="hidden md:flex space-x-6 items-center">
-      <RouterLink to="/dashboard" class="nav-link" exact>Dashboard</RouterLink>
-      <RouterLink to="/account" class="nav-link">My Account</RouterLink>
-      <RouterLink v-if="!store.isAuthenticated" to="/sign-in" class="nav-link">Sign In</RouterLink>
-      <button v-else @click="store.signOut" class="btn nav-link">Sign Out</button>
-    </div>
+      <!-- Desktop Nav -->
+      <div class="hidden md:flex space-x-6 items-center">
+        <RouterLink to="/dashboard" class="nav-link" exact>Dashboard</RouterLink>
+        <RouterLink to="/account" class="nav-link">My Account</RouterLink>
+        <RouterLink v-if="!store.isAuthenticated" to="/sign-in" class="nav-link">Sign In</RouterLink>
+        <button v-else @click="store.signOut" class="cursor-pointer">Sign Out</button>
+      </div>
 
-    <!-- Mobile Menu using Headless UI -->
-    <Menu as="div" class="relative md:hidden">
-      <MenuButton class="btn btn-ghost p-0 text-gray-600">
-        <Bars3Icon class="size-7" />
-      </MenuButton>
-      <MenuItems class="absolute right-0 mt-2 w-auto origin-top-right rounded-md bg-white shadow-lg border border-gray-200 focus:outline-none z-50">
-        <div class="flex flex-col py-2 px-3 space-y-1 whitespace-nowrap">
-          <MenuItem v-slot="{ active }">
-            <RouterLink :class="[mobileLink]" to="/dashboard">Dashboard</RouterLink>
-          </MenuItem>
-          <MenuItem v-slot="{ active }">
-            <RouterLink :class="[mobileLink]" to="/account">My Account</RouterLink>
-          </MenuItem>
-          <MenuItem v-if="!store.isAuthenticated" v-slot="{ active }">
-            <RouterLink :class="[mobileLink]" to="/sign-in">Sign In</RouterLink>
-          </MenuItem>
-          <MenuItem v-else v-slot="{ active }">
-            <button
-              :class="[mobileLink, 'text-left w-full cursor-pointer']"
-              @click="store.signOut"
-            >
-              Sign Out
-            </button>
-          </MenuItem>
-        </div>
-      </MenuItems>
-    </Menu>
-  </nav>
+      <!-- Mobile Nav with Headless UI Popover -->
+      <Popover v-slot="{ open }" class="relative md:hidden">
+        <PopoverButton class="btn btn-ghost p-0 text-gray-600">
+          <Bars3Icon class="size-7" />
+        </PopoverButton>
+
+        <transition
+          enter="transition ease-out duration-150"
+          enter-from="opacity-0 scale-95"
+          enter-to="opacity-100 scale-100"
+          leave="transition ease-in duration-100"
+          leave-from="opacity-100 scale-100"
+          leave-to="opacity-0 scale-95"
+        >
+          <PopoverPanel class="absolute right-0 mt-2 w-auto origin-top-right bg-white border border-gray-200 rounded-md shadow-lg z-50 focus:outline-none">
+            <div class="flex flex-col justify-start py-2 px-3 space-y-1 whitespace-nowrap">
+              <PopoverButton :as="RouterLink" to="/dashboard" class="text-left cursor-pointer">Dashboard</PopoverButton>
+              <PopoverButton :as="RouterLink" to="/account" class="text-left cursor-pointer">My Account</PopoverButton>
+              <PopoverButton v-if="!store.isAuthenticated" :as="RouterLink" to="/sign-in" class="text-left cursor-pointer">Sign In</PopoverButton>
+              <PopoverButton
+                v-else
+                class="text-left cursor-pointer"
+                @click="handleSignOut"
+              >
+                Sign Out
+              </PopoverButton>
+            </div>
+          </PopoverPanel>
+        </transition>
+      </Popover>
+    </nav>
 
     <router-view></router-view>
+    <CreateWishlistDialog />
+    <AddItemDialog />
+    <ConfirmDialog />
   </div>
-  <CreateWishlistDialog />
-  <AddItemDialog />
-  <ConfirmDialog />
-
-
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue'
-import { Bars3Icon } from '@heroicons/vue/24/outline';
+import { ref } from "vue"
+import {
+  Popover,
+  PopoverButton,
+  PopoverPanel
+} from "@headlessui/vue"
+import { Bars3Icon } from "@heroicons/vue/24/outline"
 import { useAuthStore } from "./stores/auth"
 import CreateWishlistDialog from "./components/CreateWishlistDialog.vue"
 import AddItemDialog from "./components/AddItemDialog.vue"
@@ -63,9 +68,19 @@ import ConfirmDialog from "./components/ConfirmDialog.vue"
 
 const store = useAuthStore()
 
-const showMenu = ref(false);
-</script>
+const mobileLink =
+  "block w-full px-4 py-2 text-sm text-gray-700 rounded hover:bg-gray-100 transition"
 
+const closePopover = () => {
+  const activeEl = document.activeElement
+  if (activeEl && typeof activeEl.blur === "function") activeEl.blur()
+}
+
+const handleSignOut = async () => {
+  await store.signOut()
+  closePopover()
+}
+</script>
 
 <style scoped>
 .logo {

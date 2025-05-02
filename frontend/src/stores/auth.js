@@ -3,32 +3,31 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../../firebase.js'
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth'
+import api from '../api/axios.js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const loading = ref(true)
+  const router = useRouter();
 
+  const loading = ref(true)
   const wishlistsUser = ref(null)
   const isAuthenticated = ref(false)
 
   onAuthStateChanged(auth, async (user) => {
-
       try {
         if (user) {
-          const { uid } = user;
-          const res = await fetch(`${import.meta.env.VITE_API_URL}/users/firebase-uid/${uid}`);
-          const data = await res.json();
-
-          wishlistsUser.value = data;
+          const res = await api('/user');
+          wishlistsUser.value = res.data;
         } else wishlistsUser.value = null;
       } catch (err) {
-        console.error(err)
+        console.error(err);
+        wishlistsUser.value = null;
+        router.push("/sign-in");
       } finally {
         isAuthenticated.value = !!user
         loading.value = false
       }
   })
 
-  const router = useRouter();
   const signOut = async () => {
     await firebaseSignOut(auth)
     await router.push("/sign-in");

@@ -109,6 +109,7 @@ import { PlusCircleIcon } from '@heroicons/vue/24/outline';
 import { useForm } from 'vee-validate';
 import * as yup from 'yup';
 import emitter from "../utilities/emitter.js";
+import api from "../api/axios"
 
 const open = ref(false);
 
@@ -149,19 +150,20 @@ const onSubmit = form.handleSubmit(async (values) => {
     loading.value = true;
 
     const { name, description, url } = values
-    const body = { name, description, url };
+    const data = { name, description, url };
 
-    if (!editItemId.value) body.added_by_id = 2;
+    // if (!editItemId.value) body.added_by_id = 2;
 
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/${!editItemId.value ? `wishlists/${wishlistId.value}/item` : `items/${editItemId.value}` }`, {
-      method: !editItemId.value ? 'POST' : 'PUT',
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
+    const res = await api.post(`/wishlists/${wishlistId.value}/item`, data)
 
-    const data = await res.json()
-    emitter.emit('add-item-modal-success', { action: !editItemId.value ? 'add' : 'edit', data })
+    // const res = await fetch(`${import.meta.env.VITE_API_URL}/${!editItemId.value ? `wishlists/${wishlistId.value}/item` : `items/${editItemId.value}` }`, {
+    //   method: !editItemId.value ? 'POST' : 'PUT',
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify(body)
+    // });
 
+    // const data = await res.json()
+    emitter.emit('add-item-modal-success', { action: 'add', data: res.data })
     open.value = false;
   } catch (err) {
     console.error(error)

@@ -1,4 +1,5 @@
 const functions = require('firebase-functions/v1');
+const fetch = require('node-fetch')
 
 exports.createUserInBackend = functions.auth.user().onCreate(async (user) => {
   try {

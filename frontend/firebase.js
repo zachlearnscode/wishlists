@@ -12,6 +12,9 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig)
 const auth = getAuth(firebaseApp)
-connectAuthEmulator(auth, "http://127.0.0.1:9099")
+
+if (location.hostname === 'localhost') {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099")
+}
 
 export { firebaseApp, auth }

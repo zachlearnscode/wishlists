@@ -37,19 +37,26 @@
 
 <script setup>
 import { ref, onBeforeMount } from 'vue';
+import { useRouter } from "vue-router"
+import { auth } from "../../firebase"
 import { useAuthStore } from "../stores/auth"
 import { PlusCircleIcon } from '@heroicons/vue/24/outline';
 import emitter from "../utilities/emitter"
+import api from "../api/axios"
 
 const store = useAuthStore()
+const router = useRouter()
 
 const lists = ref(null);
 onBeforeMount(async () => {
-  try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/users/${store.wishlistsUser.id}/wishlists`);
-    const data = await res.json();
+  emitter.on('create-wishlist-success', (event) => {
+    lists.value?.push(event.wishlist);
+    router.push(`/wishlist/${event.wishlist.id}`)
+  })
 
-    lists.value = data;
+  try {
+    const res = await api('/user/wishlists');
+    lists.value = res.data;
   } catch (err) {
     console.error(err)
   }

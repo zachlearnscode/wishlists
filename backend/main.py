@@ -1,11 +1,14 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from sqlmodel import Field, SQLModel, create_engine, Relationship, Session, select
 from sqlalchemy.orm import selectinload
 from typing import Optional, List, Annotated, Literal
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4, UUID
-
+from firebase_admin import auth as firebase_auth, credentials
+import firebase_admin
+import os
+from dotenv import load_dotenv
 
 # --------- USER ---------
 class User(SQLModel, table=True):
@@ -59,10 +62,11 @@ class Item(SQLModel, table=True):
 
     wishlist: Optional[Wishlist] = Relationship(back_populates="items")
     added_by: Optional[User] = Relationship(back_populates="items_added", sa_relationship_kwargs={"foreign_keys": "[Item.added_by_id]"})
-    claimed_by: Optional[User] = Relationship(back_populates="items_claimed", sa_relationship_kwargs={"foreign_keys": "[Item.added_by_id]"})
+    claimed_by: Optional[User] = Relationship(back_populates="items_claimed", sa_relationship_kwargs={"foreign_keys": "[Item.claimed_by_id]"})
     acquired_by: Optional[User] = Relationship(back_populates="items_acquired", sa_relationship_kwargs={"foreign_keys": "[Item.acquired_by_id]"})
 
 
+load_dotenv(".env")
 
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
@@ -136,6 +140,9 @@ with Session(engine) as session:
 
 app = FastAPI()
 
+# cred = credentials.Certificate("../secrets/serviceAccountKey.json")
+# firebase_admin.initialize_app(cred)
+firebase_admin.initialize_app(options={"projectId": "wishlists-64db1"})
 
 app.add_middleware(
     CORSMiddleware,
@@ -144,6 +151,42 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get('/user')
+def get_current_user(
+    request: Request,
+    session: SessionDep
+) -> User:
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing auth token")
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        decoded_token = firebase_auth.verify_id_token(token)
+        firebase_uid = decoded_token["uid"]
+
+        statement = select(User).where(User.firebase_uid == firebase_uid)
+        user = session.exec(statement).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found in local database")
+
+        return user
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token")
+
+class WishlistsReadWithUsers(SQLModel):
+    id: int
+    title: str
+    recipient_name: str
+    created_by_id: int
+    created_at: datetime
+    users: List[WishlistUserLink]
 
 @app.get('/users/firebase-uid/{uid}')
 def get_user_by_firebase_uid(uid: str, session: SessionDep):
@@ -169,11 +212,11 @@ def create_user_from_firebase_user(user_data: UserCreate, session: SessionDep):
 class WishlistCreate(SQLModel):
     title: str
     recipient_name: str
-    created_by_id: int
 
-@app.post("/wishlists")
-def create_wishlist(wishlist_data: WishlistCreate, session: SessionDep):
+@app.post("/wishlists", response_model=WishlistsReadWithUsers)
+def create_wishlist(wishlist_data: WishlistCreate, session: SessionDep, current_user: User = Depends(get_current_user)):
     wishlist = Wishlist(**wishlist_data.dict())
+    wishlist.created_by_id = current_user.id
 
     session.add(wishlist)
     session.commit()
@@ -187,7 +230,14 @@ def create_wishlist(wishlist_data: WishlistCreate, session: SessionDep):
     session.add(link)
     session.commit()
 
-    return wishlist
+    statement = (
+        select(Wishlist)
+        .where(Wishlist.id == wishlist.id)
+        .options(selectinload(Wishlist.users))  # Load users for response model
+    )
+    full_wishlist = session.exec(statement).first()
+
+    return full_wishlist
 
 class WishlistRead(SQLModel):
     id: int
@@ -208,20 +258,25 @@ def get_user_with_wishlists(session: SessionDep, user_id: int) -> User:
     result = session.exec(statement).first()
     return result
 
-class WishlistsReadWithUsers(SQLModel):
-    id: int
-    title: str
-    recipient_name: str
-    created_by_id: int
-    created_at: datetime
-    users: List[WishlistUserLink]
+# @app.get("/users/{user_id}/wishlists", response_model=List[WishlistsReadWithUsers])
+# def read_user_lists(user_id: int, session: SessionDep):
+#     statement = (
+#         select(Wishlist)
+#         .join(WishlistUserLink)
+#         .where(WishlistUserLink.user_id == user_id)
+#         .options(selectinload(Wishlist.users))
+#     )
 
-@app.get("/users/{user_id}/wishlists", response_model=List[WishlistsReadWithUsers])
-def read_user_lists(user_id: int, session: SessionDep):
+#     results = session.exec(statement).all()
+
+#     return results
+
+@app.get("/user/wishlists", response_model=List[WishlistsReadWithUsers])
+def read_user_lists(session: SessionDep, current_user: User = Depends(get_current_user)):
     statement = (
         select(Wishlist)
         .join(WishlistUserLink)
-        .where(WishlistUserLink.user_id == user_id)
+        .where(WishlistUserLink.user_id == current_user.id)
         .options(selectinload(Wishlist.users))
     )
 
@@ -257,18 +312,33 @@ def read_wishlist_users(wishlist_id: int, session: SessionDep):
 
     return results
 
-@app.get("/wishlists/{wishlist_id}/items")
+class ItemReadComplete(SQLModel):
+    id: int
+    wishlist_id: int
+    name: str
+    description: str | None
+    url: str | None
+    added_by: User | None
+    claimed_by: User | None
+    acquired_by: User | None
+
+@app.get("/wishlists/{wishlist_id}/items", response_model=List[ItemReadComplete])
 def read_wishlist_items(wishlist_id: int, session: SessionDep):
     statement = (
         select(Item)
         .where(Item.wishlist_id == wishlist_id)
+        .options(
+            selectinload(Item.added_by),
+            selectinload(Item.claimed_by),
+            selectinload(Item.acquired_by)
+        )
     )
 
     results = session.exec(statement).all()
 
     return results
 
-@app.get("/items/{item_id}")
+@app.get("/items/{item_id}", response_model=ItemReadComplete)
 def read_wishlist_items(item_id: int, session: SessionDep):
     statement = (
         select(Item)
@@ -283,16 +353,17 @@ class ItemCreate(SQLModel):
     name: str
     description: Optional[str] = None
     url: Optional[str] = None
-    added_by_id: int
 
-@app.post("/wishlists/{wishlist_id}/item")
+@app.post("/wishlists/{wishlist_id}/item", response_model=ItemReadComplete)
 def add_item_to_wishlist(
     wishlist_id: int, 
-    item_data: ItemCreate, 
-    session: SessionDep
+    item_data: ItemCreate,
+    session: SessionDep,
+    current_user: User = Depends(get_current_user)
 ):
     item = Item(
         **item_data.dict(),
+        added_by_id=current_user.id,
         wishlist_id=wishlist_id
     )
 
@@ -305,7 +376,7 @@ class ItemEdit(SQLModel):
     name: str
     description: Optional[str] = None
     url: Optional[str] = None
-@app.put("/items/{item_id}")
+@app.put("/items/{item_id}", response_model=ItemReadComplete)
 def edit_wishlist_item(
     item_id: int,
     item_data: ItemEdit,
@@ -325,13 +396,13 @@ def edit_wishlist_item(
     session.refresh(item)
     return item
 
-@app.put("/items/{item_id}/claim")
-def claim_item(item_id: int, session: SessionDep):
+@app.put("/items/{item_id}/claim", response_model=ItemReadComplete)
+def claim_item(item_id: int, session: SessionDep, current_user=Depends(get_current_user)):
     statement = select(Item).where(Item.id == item_id)
     results = session.exec(statement)
 
     item = results.one()
-    item.claimed_by_id = 3
+    item.claimed_by_id = current_user.id
     session.add(item)
     session.commit()
     session.refresh(item)
@@ -339,8 +410,8 @@ def claim_item(item_id: int, session: SessionDep):
     return item
 
 
-@app.put("/items/{item_id}/unclaim")
-def unclaim_item(item_id: int, session: SessionDep):
+@app.put("/items/{item_id}/unclaim", response_model=ItemReadComplete)
+def unclaim_item(item_id: int, session: SessionDep, current_user=Depends(get_current_user)):
     statement = select(Item).where(Item.id == item_id)
     results = session.exec(statement)
 
@@ -352,13 +423,13 @@ def unclaim_item(item_id: int, session: SessionDep):
 
     return item
 
-@app.put("/items/{item_id}/acquire")
-def claim_item(item_id: int, session: SessionDep):
+@app.put("/items/{item_id}/acquire", response_model=ItemReadComplete)
+def claim_item(item_id: int, session: SessionDep, current_user=Depends(get_current_user)):
     statement = select(Item).where(Item.id == item_id)
     results = session.exec(statement)
 
     item = results.one()
-    item.acquired_by_id = 3
+    item.acquired_by_id = current_user.id
     session.add(item)
     session.commit()
     session.refresh(item)
@@ -366,7 +437,7 @@ def claim_item(item_id: int, session: SessionDep):
     return item
 
 
-@app.put("/items/{item_id}/unacquire")
+@app.put("/items/{item_id}/unacquire", response_model=ItemReadComplete)
 def unclaim_item(item_id: int, session: SessionDep):
     statement = select(Item).where(Item.id == item_id)
     results = session.exec(statement)
@@ -379,11 +450,11 @@ def unclaim_item(item_id: int, session: SessionDep):
 
     return item
 
-@app.delete("/wishlists/{wishlist_id}/users/{user_id}")
-def leave_wishlist(wishlist_id: int, user_id: int, session: Session = Depends(get_session)):
+@app.delete("/wishlists/{wishlist_id}/user")
+def leave_wishlist(wishlist_id: int, user_id: int, session: Session = Depends(get_session), current_user=Depends(get_current_user)):
     statement = select(WishlistUserLink).where(
         WishlistUserLink.wishlist_id == wishlist_id,
-        WishlistUserLink.user_id == user_id
+        WishlistUserLink.user_id == current_user.id
     )
 
     link = session.exec(statement).first()
