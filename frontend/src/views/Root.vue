@@ -35,5 +35,48 @@
 </template>
 
 <script setup>
-// No logic needed for now
+import { onBeforeMount } from 'vue';
+import { useRouter, useRoute } from "vue-router"
+import { useAuthStore } from "../stores/auth"
+import api from "../api/axios"
+
+const router = useRouter();
+const route = useRoute();
+const store = useAuthStore();
+
+onBeforeMount(async () => {
+  const { invite } = route.query
+  if (invite) {
+    try {
+      const params = { uuid: invite };
+      const res1 = await api('validate-invitation-id', { params })
+
+      if (res1.data) {
+        const wishlistId = res1.data;
+        if (store.isAuthenticated) {
+          const res2 = await api.post(`/wishlists/${wishlistId}/users`)
+          router.push(`/wishlists/${wishlistId}`)
+        } else {
+          sessionStorage.setItem("pendingInviteCode", invite)
+          sessionStorage.setItem("pendingWishlistId", wishlistId);
+          router.push('/sign-in')
+        }
+      }
+    } catch (err) {
+      console.error(err)
+    }
+    // validate inviteCode on BE
+    // if user authorized
+      // join wishlist on BE
+      // push to wishlist route
+    // else
+      // store invite to session
+      // redirect to sign-in
+      // after sign-in (on Dashboard)
+        // check for invite in session storage
+          // join wishlist on BE
+          // push to wishlist route
+
+  }
+})
 </script>

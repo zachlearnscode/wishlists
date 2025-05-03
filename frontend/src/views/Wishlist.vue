@@ -7,12 +7,29 @@
           {{ wishlist.title }}
         </h1>
         <div class="flex">
-          <Button
-            class="btn btn-circle btn-ghost"
-            @click="emitter.emit('show-add-item-modal', { wishlistId: id })"
-          >
-            <PlusCircleIcon class="size-6"/>
-          </Button>
+          <div class="tooltip tooltip-bottom" data-tip="Add Item">
+            <button
+              class="btn btn-circle btn-ghost"
+              @click="emitter.emit('show-add-item-modal', { wishlistId: id })"
+            >
+              <PlusCircleIcon class="size-6"/>
+            </button>
+          </div>
+          <div class="tooltip tooltip-bottom" data-tip="Copy Invite">
+            <button
+              :class="confirmed ? 'btn-success' : 'btn-ghost'"
+              class="btn btn-circle"
+              @click="onCopyInviteLinkBtnClick"
+            >
+              <Transition name="fade" mode="out-in">
+                <component
+                  :is="confirmed ? CheckIcon : EnvelopeIcon"
+                  :key="confirmed"
+                  class="size-6"
+                />
+              </Transition>
+            </button>
+          </div>
           <div class="tooltip tooltip-bottom" data-tip="Leave">
             <button
               class="btn btn-circle btn-ghost"
@@ -115,12 +132,22 @@
       </ul>
     </div>
   </div>
+  <Transition
+    v-if="showToast"
+    name="fade"
+  >
+    <div class="toast toast-end">
+      <div class="alert alert-success">
+        <span>Link copied to clipboard</span>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <script setup>
 import { reactive, ref, onBeforeMount, onMounted } from 'vue'
 import { useRouter } from "vue-router"
-import { EyeIcon, PlusCircleIcon, ArrowLeftStartOnRectangleIcon, Cog6ToothIcon, ArrowUpRightIcon, PencilSquareIcon, UserIcon, LightBulbIcon, HandRaisedIcon, GiftIcon } from '@heroicons/vue/24/outline';
+import { EyeIcon, PlusCircleIcon, ArrowLeftStartOnRectangleIcon, Cog6ToothIcon, ArrowUpRightIcon, PencilSquareIcon, UserIcon, LightBulbIcon, HandRaisedIcon, GiftIcon, EnvelopeIcon, CheckIcon } from '@heroicons/vue/24/outline';
 import emitter from "../utilities/emitter.js"
 import { useAuthStore } from "../stores/auth"
 import api from "../api/axios"
@@ -167,6 +194,18 @@ onMounted(async () => {
     loading.value = false;
   }
 })
+
+const confirmed = ref(false);
+const showToast = ref(false);
+const onCopyInviteLinkBtnClick = async () => {
+  const { origin } = window.location;
+  const inviteLink = `${origin}?invite=${wishlist.value.invitation_id}`
+  await navigator.clipboard.writeText(inviteLink);
+  confirmed.value = true;
+  setTimeout(() => confirmed.value = false, 500)
+  showToast.value = true;
+  setTimeout(() => showToast.value = false, 2000)
+}
 
 const onLeaveBtnClick = () => {
   emitter.emit('show-confirm-dialog', {

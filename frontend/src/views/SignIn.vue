@@ -8,11 +8,30 @@
 import { onMounted } from "vue"
 import { auth } from "../../firebase.js"
 import { EmailAuthProvider } from 'firebase/auth'
+import { useAuthStore } from "../stores/auth"
+import api from "../api/axios"
 import * as firebaseui from 'firebaseui'
 import 'firebaseui/dist/firebaseui.css'
 
+const store = useAuthStore()
+
 var uiConfig = {
-  signInSuccessUrl: `${import.meta.env.VITE_APP_URL}/dashboard`,
+  callbacks: {
+    signInSuccessWithAuthResult: async function (authResult, redirectUrl) {
+      const inviteId = sessionStorage.getItem("pendingInviteCode");
+      const wishlistId = sessionStorage.getItem("pendingWishlistId");
+
+      if (inviteId && wishlistId) {
+        
+        await api.post(`/wishlists/${wishlistId}/users`)
+        window.location.href = `/wishlist/${wishlistId}`;
+        sessionStorage.removeItem("pendingInviteCode");
+        sessionStorage.removeItem("pendingWishlistId");
+      } else window.location.href = '/dashboard';
+
+      return false;
+    },
+  },
   signInOptions: [
     // firebase.auth.GoogleAuthProvider.PROVIDER_ID,
     // firebase.auth.FacebookAuthProvider.PROVIDER_ID,

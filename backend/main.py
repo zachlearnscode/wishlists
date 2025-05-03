@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Query
 from sqlmodel import Field, SQLModel, create_engine, Relationship, Session, select
 from sqlalchemy.orm import selectinload
 from typing import Optional, List, Annotated, Literal
@@ -311,6 +311,19 @@ def read_wishlist_users(wishlist_id: int, session: SessionDep):
 
     return results
 
+@app.post("/wishlists/{wishlist_id}/users")
+def add_user_to_wishlist(wishlist_id: int, session: SessionDep, current_user: User = Depends(get_current_user)):
+    link = WishlistUserLink(
+      wishlist_id=wishlist_id,
+      user_id=current_user.id,
+      role="contributor"
+      )
+
+    session.add(link)
+    session.commit()
+
+    return
+
 class ItemReadComplete(SQLModel):
     id: int
     wishlist_id: int
@@ -471,3 +484,18 @@ def leave_wishlist(wishlist_id: int, user_id: int, session: Session = Depends(ge
     session.commit()
 
     return {"detail": "User successfully removed from wishlist"}
+
+@app.get("/validate-invitation-id")
+def validate_invitation_id(session: SessionDep, uuid: str = Query(...)):
+    try:
+        invitation_id = UUID(uuid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid invitation ID format")
+    
+    statement = select(Wishlist).where(Wishlist.invitation_id == invitation_id)
+    result = session.exec(statement).one_or_none()
+
+    if result:
+        return result.id
+    else:
+        return False
