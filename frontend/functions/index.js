@@ -1,17 +1,14 @@
 const functions = require('firebase-functions/v1');
-const fetch = require('node-fetch')
+const axios = require('axios')
+
+axios.defaults.baseURL = process.env.API_URL
 
 exports.createUserInBackend = functions.auth.user().onCreate(async (user) => {
+  console.log(user)
   try {
-    const response = await fetch(`http://127.0.0.1:8000/users`, {
-      method: 'POST',
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: user.email,
-        firebase_uid: user.uid,
-        name: user.email.split('@')[0] // TODO: get the user's actual display name
-        // TODO: pull created timestamp off of user object
-      })
+    const response = await axios.post("/users", {
+      email: user.email,
+      firebase_uid: user.uid
     })
 
     console.log('Successfully created user in backend:', response.data);

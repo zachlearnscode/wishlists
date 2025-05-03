@@ -13,10 +13,16 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = ref(false)
 
   onAuthStateChanged(auth, async (user) => {
+    console.log(user)
       try {
         if (user) {
           const res = await api('/user');
           wishlistsUser.value = res.data;
+
+          if (
+            !wishlistsUser.value.name ||
+            user.displayName != wishlistsUser.value.name
+          ) api.put("/user", { "name": user.displayName })
         } else wishlistsUser.value = null;
       } catch (err) {
         console.error(err);

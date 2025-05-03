@@ -15,8 +15,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     firebase_uid: str = Field(index=True, unique=True)
     email: str = Field(unique=True, index=True)
-    name: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    name: str | None
 
     wishlists_created: List["Wishlist"] = Relationship(back_populates="creator", sa_relationship_kwargs={"foreign_keys": "[Wishlist.created_by_id]"})
     wishlist_links: List["WishlistUserLink"] = Relationship(back_populates="user")
@@ -179,6 +178,19 @@ def get_current_user(
     except Exception as e:
         print(e)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth token")
+    
+class UserUpdate(SQLModel):
+    name: str | None
+@app.put("/user")
+def update_user(user_data: UserUpdate, session: SessionDep, current_user: User = Depends(get_current_user)):
+    user_data = user_data.dict()
+    for key, value in user_data.items():
+        setattr(current_user, key, value)
+
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+    return current_user
 
 class WishlistsReadWithUsers(SQLModel):
     id: int
@@ -198,7 +210,6 @@ def get_user_by_firebase_uid(uid: str, session: SessionDep):
 class UserCreate(SQLModel):
     email: str
     firebase_uid: str
-    name: str
 
 @app.post("/users")
 def create_user_from_firebase_user(user_data: UserCreate, session: SessionDep):

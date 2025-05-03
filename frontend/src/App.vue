@@ -46,7 +46,8 @@
       </Popover>
     </nav>
 
-    <router-view></router-view>
+    <router-view />
+
     <CreateWishlistDialog />
     <AddItemDialog />
     <ConfirmDialog />
