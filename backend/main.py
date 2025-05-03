@@ -58,6 +58,7 @@ class Item(SQLModel, table=True):
     added_by_id: int = Field(foreign_key="user.id")
     claimed_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
     acquired_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    active: bool = Field(default=True)
 
     wishlist: Optional[Wishlist] = Relationship(back_populates="items")
     added_by: Optional[User] = Relationship(back_populates="items_added", sa_relationship_kwargs={"foreign_keys": "[Item.added_by_id]"})
@@ -269,19 +270,6 @@ def get_user_with_wishlists(session: SessionDep, user_id: int) -> User:
     result = session.exec(statement).first()
     return result
 
-# @app.get("/users/{user_id}/wishlists", response_model=List[WishlistsReadWithUsers])
-# def read_user_lists(user_id: int, session: SessionDep):
-#     statement = (
-#         select(Wishlist)
-#         .join(WishlistUserLink)
-#         .where(WishlistUserLink.user_id == user_id)
-#         .options(selectinload(Wishlist.users))
-#     )
-
-#     results = session.exec(statement).all()
-
-#     return results
-
 @app.get("/user/wishlists", response_model=List[WishlistsReadWithUsers])
 def read_user_lists(session: SessionDep, current_user: User = Depends(get_current_user)):
     statement = (
@@ -338,6 +326,7 @@ def read_wishlist_items(wishlist_id: int, session: SessionDep):
     statement = (
         select(Item)
         .where(Item.wishlist_id == wishlist_id)
+        .where(Item.active == True)
         .options(
             selectinload(Item.added_by),
             selectinload(Item.claimed_by),
@@ -350,16 +339,18 @@ def read_wishlist_items(wishlist_id: int, session: SessionDep):
     return results
 
 @app.get("/items/{item_id}", response_model=ItemReadComplete)
-def read_wishlist_items(item_id: int, session: SessionDep):
+def read_wishlist_items(item_id: int, session: SessionDep, current_user: User = Depends(get_current_user)):
     statement = (
         select(Item)
         .where(Item.id == item_id)
     )
+    item = session.exec(statement).one()
 
-    results = session.exec(statement).one()
-
-    return results
-
+    if item.added_by_id == current_user.id:
+      return item
+    else:
+      raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current user did not add item")
+    
 class ItemCreate(SQLModel):
     name: str
     description: Optional[str] = None
@@ -384,15 +375,17 @@ def add_item_to_wishlist(
     return item
 
 class ItemEdit(SQLModel):
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     url: Optional[str] = None
+    active: Optional[bool] = None
 @app.put("/items/{item_id}", response_model=ItemReadComplete)
 def edit_wishlist_item(
     item_id: int,
     item_data: ItemEdit,
     session: SessionDep
 ):
+    print(item_data)
     statement = select(Item).where(Item.id == item_id)
     results = session.exec(statement)
 
@@ -400,7 +393,8 @@ def edit_wishlist_item(
 
     item_data = item_data.dict()
     for key, value in item_data.items():
-        setattr(item, key, value)
+        if value is not None:
+          setattr(item, key, value)
 
     session.add(item)
     session.commit()

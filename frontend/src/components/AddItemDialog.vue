@@ -76,26 +76,38 @@
             {{ toValue(form.errors).url }}
           </span>
         </form>
-        <div class="modal-action">
+        <div
+          :class="editItemId ? 'justify-between' : 'justify-end'"
+          class="modal-action"
+        >
           <button
-            for="add_item_modal"
-            class="btn btn-soft"
-            @click="onClose"
+            v-if="editItemId"
+            class="btn btn-soft btn-error"
+            @click="onDeleteItemClick"
           >
-            Cancel
-        </button>
-          <button
-            :form="form.formId"
-            :disabled="loading"
-            type="submit"
-            class="btn btn-soft btn-primary"
-          >
-            <span
-              v-if="loading"
-              class="loading loading-spinner"
-            />
-            Submit
+            Delete Item
           </button>
+          <div class="flex gap-1">
+            <button
+              for="add_item_modal"
+              class="btn btn-soft"
+              @click="onClose"
+            >
+              Cancel
+            </button>
+            <button
+              :form="form.formId"
+              :disabled="loading"
+              type="submit"
+              class="btn btn-soft btn-primary"
+            >
+              <span
+                v-if="loading"
+                class="loading loading-spinner"
+              />
+              Submit
+            </button>
+          </div>
         </div>
       </DialogPanel>
     </div>
@@ -120,8 +132,21 @@ const initializing = ref(false);
 const loading = ref(false);
 
 onBeforeMount(() => {
-  emitter.on("show-add-item-modal", (event) => {
+  emitter.on("show-add-item-modal", async (event) => {
     wishlistId.value = event.wishlistId;
+    if (event.editItemId) {
+      editItemId.value = event.editItemId;
+      try {
+        const res = await api(`/items/${editItemId.value}`)
+        const data = res.data
+
+        data.name && (name.value = data.name )
+        data.description && (description.value = data.description)
+        data.url && (url.value = data.url)
+      } catch (err) {
+        console.error(err)
+      }
+    }
     open.value = true;
   })
 })
@@ -152,18 +177,14 @@ const onSubmit = form.handleSubmit(async (values) => {
     const { name, description, url } = values
     const data = { name, description, url };
 
-    // if (!editItemId.value) body.added_by_id = 2;
+    const method = editItemId.value ? 'put' : 'post'
+    const res = await (
+      method == 'post' ?
+        api.post(`/wishlists/${wishlistId.value}/item`, data) :
+        api.put(`/items/${editItemId.value}`, data)
+      );
 
-    const res = await api.post(`/wishlists/${wishlistId.value}/item`, data)
-
-    // const res = await fetch(`${import.meta.env.VITE_API_URL}/${!editItemId.value ? `wishlists/${wishlistId.value}/item` : `items/${editItemId.value}` }`, {
-    //   method: !editItemId.value ? 'POST' : 'PUT',
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify(body)
-    // });
-
-    // const data = await res.json()
-    emitter.emit('add-item-modal-success', { action: 'add', data: res.data })
+    emitter.emit('add-item-modal-success', { action: method, data: res.data })
     open.value = false;
   } catch (err) {
     console.error(error)
@@ -171,6 +192,19 @@ const onSubmit = form.handleSubmit(async (values) => {
     loading.value = false
   }
 });
+
+const onDeleteItemClick = async () => {
+  try {
+    loading.value = true
+    await api.put(`/items/${editItemId.value}`, { active: false })
+    emitter.emit('add-item-modal-success', { action: 'remove' })
+    open.value = false;
+  } catch (err) {
+    console.error(err)
+  } finally {
+    loading.value = false
+  }
+}
 
 const onClose = () => {
   open.value = false;

@@ -13,7 +13,6 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = ref(false)
 
   onAuthStateChanged(auth, async (user) => {
-    console.log(user)
       try {
         if (user) {
           const res = await api('/user');

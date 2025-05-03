@@ -139,11 +139,14 @@ const users = ref(null);
 const items = ref(null);
 
 onBeforeMount(() => {
-  emitter.on('add-item-modal-success', ({ action, data }) => {
-    if (action == 'add') items.value.push(data);
-    else if (action == 'edit') {
+  emitter.on('add-item-modal-success', async ({ action, data }) => {
+    if (action == 'post') items.value.push(data);
+    else if (action == 'put') {
       const itemIdx = items.value.findIndex(({ id }) => id == data.id);
       items.value[itemIdx] = data;
+    } else {
+      const res = await api(`/wishlists/${props.id}/items`)
+      items.value = res.data
     }
   })
 })
