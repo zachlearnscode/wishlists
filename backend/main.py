@@ -82,68 +82,11 @@ def get_session():
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
-with Session(engine) as session:
-    SQLModel.metadata.drop_all(engine)
-    SQLModel.metadata.create_all(engine)
-
-    # --- Create Users ---
-    alice = User(name="Alice Johnson", email="alice@example.com", firebase_uid="123")
-    bob = User(name="Bob Smith", email="bob@example.com", firebase_uid="456")
-    emma = User(name="Emma Brown", email="emma@example.com", firebase_uid="789")
-
-    session.add_all([alice, bob, emma])
-    session.commit()
-
-    # --- Create Wishlist (for Emma) ---
-    wishlist = Wishlist(
-        title="Emma’s Birthday 2025",
-        recipient_name="Emma Brown",
-        created_by_id=alice.id
-    )
-    session.add(wishlist)
-    session.commit()
-
-    # --- Link Users to Wishlist ---
-    session.add_all([
-        WishlistUserLink(wishlist_id=wishlist.id, user_id=alice.id, role="owner"),
-        WishlistUserLink(wishlist_id=wishlist.id, user_id=emma.id, role="contributor"),
-        WishlistUserLink(wishlist_id=wishlist.id, user_id=bob.id, role="contributor"),
-    ])
-    session.commit()
-
-    # --- Add Items ---
-    item1 = Item(
-        wishlist_id=wishlist.id,
-        added_by_id=bob.id,
-        name="Wireless Headphones",
-        description="Noise-cancelling, over-ear",
-        url="https://example.com/headphones",
-        claimed_by_id=alice.id,
-        acquired_by_id=alice.id
-    )
-
-    item2 = Item(
-        wishlist_id=wishlist.id,
-        added_by_id=bob.id,
-        name="Leather Journal",
-        url="https://example.com/journal"
-    )
-
-    item3 = Item(
-        wishlist_id=wishlist.id,
-        added_by_id=emma.id,
-        name="Comfy Socks",
-        url="https://example.com/socks"
-    )
-
-    session.add_all([item1, item2, item3])
-    session.commit()
-
 app = FastAPI()
 
-# cred = credentials.Certificate("../secrets/serviceAccountKey.json")
-# firebase_admin.initialize_app(cred)
-firebase_admin.initialize_app(options={"projectId": "wishlists-64db1"})
+cred = credentials.Certificate("./secrets/serviceAccountKey.json")
+firebase_admin.initialize_app(cred)
+# firebase_admin.initialize_app(options={"projectId": "wishlists-64db1"})
 
 app.add_middleware(
     CORSMiddleware,
