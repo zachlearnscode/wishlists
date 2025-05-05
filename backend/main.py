@@ -67,14 +67,14 @@ class Item(SQLModel, table=True):
     acquired_by: Optional[User] = Relationship(back_populates="items_acquired", sa_relationship_kwargs={"foreign_keys": "[Item.acquired_by_id]"})
 
 
-load_dotenv(".env")
+# load_dotenv(".env")
 
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 connect_args = {"check_same_thread": False}
 engine = create_engine(sqlite_url, connect_args=connect_args, echo=True)
-# SQLModel.metadata.create_all(engine)
+SQLModel.metadata.create_all(engine)
 
 def get_session():
     with Session(engine) as session:
@@ -84,8 +84,8 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 app = FastAPI()
 
-cred = credentials.Certificate("./secrets/serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
+cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+firebase_admin.initialize_app(credentials.Certificate(cred_path))
 # firebase_admin.initialize_app(options={"projectId": "wishlists-64db1"})
 
 app.add_middleware(
@@ -111,6 +111,7 @@ def get_current_user(
     try:
         decoded_token = firebase_auth.verify_id_token(token)
         firebase_uid = decoded_token["uid"]
+        print(f'decoded token: {firebase_uid}')
 
         statement = select(User).where(User.firebase_uid == firebase_uid)
         user = session.exec(statement).first()
