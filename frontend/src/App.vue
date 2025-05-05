@@ -15,7 +15,7 @@
       </div>
 
       <!-- Mobile Nav with Headless UI Popover -->
-      <Popover v-slot="{ open }" class="relative md:hidden">
+      <Popover v-slot="{ open }" as='nav' class="relative md:hidden">
         <PopoverButton class="btn btn-ghost p-0 text-gray-600">
           <Bars3Icon class="size-7" />
         </PopoverButton>
@@ -30,9 +30,15 @@
         >
           <PopoverPanel class="absolute right-0 mt-2 w-auto origin-top-right bg-white border border-gray-200 rounded-md shadow-lg z-50 focus:outline-none">
             <div class="flex flex-col justify-start py-2 px-3 space-y-1 whitespace-nowrap">
-              <PopoverButton :as="RouterLink" to="/dashboard" class="text-left cursor-pointer">Dashboard</PopoverButton>
-              <PopoverButton :as="RouterLink" to="/account" class="text-left cursor-pointer">My Account</PopoverButton>
-              <PopoverButton v-if="!store.isAuthenticated" :as="RouterLink" to="/sign-in" class="text-left cursor-pointer">Sign In</PopoverButton>
+              <PopoverButton as="template" to="/dashboard" class="text-left cursor-pointer">
+                <RouterLink to="/dashboard" class="text-left cursor-pointer">Dashboard</RouterLink>
+              </PopoverButton>
+              <PopoverButton as="template">
+                <RouterLink to="/account" class="text-left cursor-pointer">My Account</RouterLink>
+              </PopoverButton>
+              <PopoverButton v-if="!store.isAuthenticated" as="template">
+                <RouterLink  to="/sign-in" class="text-left cursor-pointer">Sign In</RouterLink>
+              </PopoverButton>
               <PopoverButton
                 v-else
                 class="text-left cursor-pointer"
@@ -49,6 +55,7 @@
     <router-view />
 
     <CreateWishlistDialog />
+    <ManageWishlistDialog />
     <AddItemDialog />
     <ConfirmDialog />
   </div>
@@ -64,6 +71,7 @@ import {
 import { Bars3Icon } from "@heroicons/vue/24/outline"
 import { useAuthStore } from "./stores/auth"
 import CreateWishlistDialog from "./components/CreateWishlistDialog.vue"
+import ManageWishlistDialog from "./components/ManageWishlistDialog.vue"
 import AddItemDialog from "./components/AddItemDialog.vue"
 import ConfirmDialog from "./components/ConfirmDialog.vue"
 

@@ -17,11 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
         if (user) {
           const res = await api('/user');
           wishlistsUser.value = res.data;
-
-          if (
-            !wishlistsUser.value.name ||
-            user.displayName != wishlistsUser.value.name
-          ) api.put("/user", { "name": user.displayName })
+          if (!wishlistsUser.value.name || user.displayName != wishlistsUser.value.name) api.put("/user", { "name": user.displayName })
         } else wishlistsUser.value = null;
       } catch (err) {
         console.error(err);

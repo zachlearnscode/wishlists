@@ -5,15 +5,15 @@ import { watch } from 'vue'
 import Root from './views/Root.vue'
 import Dashboard from './views/Dashboard.vue'
 import Wishlist from './views/Wishlist.vue'
-import Account from './views/Account.vue'
 import SignIn from './views/SignIn.vue'
+import NotFound from './views/NotFound.vue'
 
 const routes = [
   { path: '/', component: Root },
   { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/wishlist/:id', component: Wishlist, props: true, meta: { requiresAuth: true } },
-  { path: '/account/', component: Account, props: true, meta: { requiresAuth: true } },
   { path: '/sign-in', component: SignIn },
+  { path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound }
 ]
 
 const router = createRouter({

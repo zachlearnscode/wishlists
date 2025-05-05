@@ -6,7 +6,7 @@
   >
     <div class="fixed inset-0 bg-black/30" aria-hidden="true" />
     <div class="fixed inset-0 flex w-screen items-center justify-center p-4">
-      <DialogPanel class="modal-box opacity-100">
+      <DialogPanel class="modal-box opacity-100 w-sm">
         <DialogTitle>
           <h3 class="font-bold text-lg">
             {{ confirmHeader }}
@@ -24,7 +24,7 @@
           <button
             :disabled="loading"
             type="submit"
-            class="btn btn-soft btn-warning"
+            class="btn btn-error"
             @click="onConfirm"
           >
             <span

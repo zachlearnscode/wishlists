@@ -29,6 +29,7 @@ class Wishlist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     recipient_name: Optional[str]
+    active: bool = Field(default=True)
     created_by_id: int = Field(foreign_key="user.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     invitation_id: UUID = Field(default_factory=uuid4, index=True, unique=True)
@@ -199,6 +200,8 @@ class WishlistsReadWithUsers(SQLModel):
     recipient_name: str
     created_by_id: int
     created_at: datetime
+    invitation_id: UUID
+    active: bool
     users: List[WishlistUserLink]
 
 @app.get('/users/firebase-uid/{uid}')
@@ -283,16 +286,17 @@ def read_user_lists(session: SessionDep, current_user: User = Depends(get_curren
 
     return results
 
-@app.get("/wishlists/{wishlist_id}")
+@app.get("/wishlists/{wishlist_id}", response_model=WishlistsReadWithUsers)
 def read_user_lists(wishlist_id: int, session: SessionDep):
     statement = (
         select(Wishlist)
         .where(Wishlist.id == wishlist_id)
+        .options(selectinload(Wishlist.users))
     )
+    results = session.exec(statement);
 
-    results = session.exec(statement).first();
-
-    return results
+    wishlist = results.one_or_none();
+    return wishlist
 
 
 class UserWithRole(SQLModel):
@@ -469,7 +473,7 @@ def unclaim_item(item_id: int, session: SessionDep):
     return item
 
 @app.delete("/wishlists/{wishlist_id}/user")
-def leave_wishlist(wishlist_id: int, user_id: int, session: Session = Depends(get_session), current_user=Depends(get_current_user)):
+def leave_wishlist(wishlist_id: int, session: Session = Depends(get_session), current_user=Depends(get_current_user)):
     statement = select(WishlistUserLink).where(
         WishlistUserLink.wishlist_id == wishlist_id,
         WishlistUserLink.user_id == current_user.id
@@ -499,3 +503,17 @@ def validate_invitation_id(session: SessionDep, uuid: str = Query(...)):
         return result.id
     else:
         return False
+    
+@app.patch("/wishlists/{wishlist_id}/deactivate", status_code=204)
+def deactivate_wishlist(wishlist_id: int, session: SessionDep):
+    statement = select(Wishlist).where(Wishlist.id == wishlist_id)
+    wishlist = session.exec(statement).one_or_none()
+
+    if not wishlist:
+        raise HTTPException(status_code=404, detail="Wishlist not found")
+
+    wishlist.active = False
+    session.add(wishlist)
+    session.commit()
+
+    return

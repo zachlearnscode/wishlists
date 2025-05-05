@@ -8,8 +8,8 @@
       Create  a Wishlist
     </button>
     <div
-      v-if="lists?.length"
-      v-for="list in lists"
+      v-if="lists?.filter(({ active }) => active).length"
+      v-for="list in lists.filter(({ active }) => active)"
       :key="list.id"
       class="card w-96/100 shadow-sm w-full"
     >
@@ -28,7 +28,7 @@
     <div v-else class="card card-dash border-dashed border-3 w-full">
       <div class="card-body mx-auto opacity-40">
         <h2 class="card-title">
-          Your wishlists will appear here
+          Your active wishlists will appear here
         </h2>
       </div>
     </div>

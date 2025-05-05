@@ -30,19 +30,50 @@
               </Transition>
             </button>
           </div>
-          <div class="tooltip tooltip-bottom" data-tip="Leave">
-            <button
-              class="btn btn-circle btn-ghost"
-              @click="onLeaveBtnClick"
+          <Popover v-slot="{ open }" class="relative">
+            <div
+              :class="{ tooltip: !open }"
+              data-tip="Settings"
+              class="tooltip-bottom"
             >
-              <ArrowLeftStartOnRectangleIcon class="size-6"/>
-            </button>
-          </div>
-          <div class="tooltip tooltip-bottom" data-tip="Manage">
-            <button class="btn btn-circle btn-ghost">
-              <Cog6ToothIcon class="size-6"/>
-            </button>
-          </div>
+              <PopoverButton class="btn btn-circle btn-ghost">
+                <Cog6ToothIcon class="size-6" />
+              </PopoverButton>
+            </div>
+
+            <transition
+              enter="transition ease-out duration-150"
+              enter-from="opacity-0 scale-95"
+              enter-to="opacity-100 scale-100"
+              leave="transition ease-in duration-100"
+              leave-from="opacity-100 scale-100"
+              leave-to="opacity-0 scale-95"
+            >
+              <PopoverPanel class="absolute right-0 mt-2 w-auto origin-top-right bg-white border border-gray-200 rounded-md shadow-lg z-50 focus:outline-none">
+                <div class="flex flex-col justify-start py-2 space-y-1 whitespace-nowrap">
+                  <PopoverButton
+                    v-if="owner.user_id == store.wishlistsUser.id"
+                    class="text-left cursor-pointer px-3"
+                    @click="emitter.emit('show-manage-wishlist-dialog', { wishlistId: wishlist.id })"
+                  >
+                    <div class="flex align-center gap-1">
+                      <AdjustmentsHorizontalIcon class="size-5 my-auto" />
+                      Manage
+                    </div>
+                  </PopoverButton>
+                  <PopoverButton
+                    class="text-left cursor-pointer px-3"
+                    @click="onLeaveBtnClick"
+                  >
+                    <div class="flex align-center gap-1">
+                      <ArrowLeftStartOnRectangleIcon class="size-5 my-auto" />
+                      Leave
+                    </div>
+                  </PopoverButton>
+                </div>
+              </PopoverPanel>
+            </transition>
+          </Popover>
         </div>
       </div>
       <ul class="list">
@@ -132,22 +163,18 @@
       </ul>
     </div>
   </div>
-  <Transition
-    v-if="showToast"
-    name="fade"
-  >
-    <div class="toast toast-end">
-      <div class="alert alert-success">
-        <span>Link copied to clipboard</span>
-      </div>
-    </div>
-  </Transition>
 </template>
 
 <script setup>
-import { reactive, ref, onBeforeMount, onMounted } from 'vue'
+import { reactive, ref, computed, onBeforeMount, onMounted } from 'vue'
 import { useRouter } from "vue-router"
-import { EyeIcon, PlusCircleIcon, ArrowLeftStartOnRectangleIcon, Cog6ToothIcon, ArrowUpRightIcon, PencilSquareIcon, UserIcon, LightBulbIcon, HandRaisedIcon, GiftIcon, EnvelopeIcon, CheckIcon } from '@heroicons/vue/24/outline';
+import {
+  Popover,
+  PopoverButton,
+  PopoverPanel
+} from "@headlessui/vue"
+import { AdjustmentsHorizontalIcon, EyeIcon, PlusCircleIcon, ArrowLeftStartOnRectangleIcon, Cog6ToothIcon, ArrowUpRightIcon, PencilSquareIcon, UserIcon, LightBulbIcon, HandRaisedIcon, GiftIcon, EnvelopeIcon, CheckIcon } from '@heroicons/vue/24/outline';
+import WishlistSettingsPopover from "../components/WishlistSettingsPopover.vue";
 import emitter from "../utilities/emitter.js"
 import { useAuthStore } from "../stores/auth"
 import api from "../api/axios"
@@ -162,6 +189,7 @@ const store = useAuthStore()
 
 const loading = ref(true);
 const wishlist = ref(null);
+const owner = computed(() => wishlist.value?.users.find(({ role }) => role == 'owner'))
 const users = ref(null);
 const items = ref(null);
 
@@ -196,15 +224,12 @@ onMounted(async () => {
 })
 
 const confirmed = ref(false);
-const showToast = ref(false);
 const onCopyInviteLinkBtnClick = async () => {
   const { origin } = window.location;
   const inviteLink = `${origin}?invite=${wishlist.value.invitation_id}`
   await navigator.clipboard.writeText(inviteLink);
   confirmed.value = true;
   setTimeout(() => confirmed.value = false, 500)
-  showToast.value = true;
-  setTimeout(() => showToast.value = false, 2000)
 }
 
 const onLeaveBtnClick = () => {
